@@ -82,7 +82,7 @@ def draw_shape(start, stop, strand, z, h, firstorf):
         y=(z, z+h/2, z+h, z+h, z+h/2, z, z)
     elif strand == -1:
         x=(start+arrow_offset, start, start+arrow_offset, stop, stop-arrow_offset, stop, start+arrow_offset)
-        y=(z, z-h/2, z-h, z-h, z-h/2, z, z)
+        y=(h/4+z, h/4+z-h/2, h/4+z-h, h/4+z-h, h/4+z-h/2, h/4+z, h/4+z)
     else:
         z = z+0.5 #offset height
         x=(start, start, stop, stop, start)
