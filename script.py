@@ -3,6 +3,19 @@ import glob
 import pandas as pd
 from phamlite import drawOrf, graphing
 
+def createGembase(gb_files):
+    for gb_file in gb_files:
+        for gb_record in SeqIO.parse(open(gb_file,"r"), "genbank") :
+            assembly = gb_record.dbxrefs[0].split(':')[1].replace('_','').replace('.','')
+            for feature in gb_record.features:
+                if feature.type == 'CDS':
+                    print('>{}q{}_{}'.format(
+                        assembly,
+                        gb_record.name.replace('_','').replace('.',''),
+                        feature.qualifiers['protein_id'][0].split('.')[0].replace('_','')
+                        ))
+                    print(feature.qualifiers['translation'][0])
+
 def graph(DHS):
     traces = drawOrf(DHS)
     graphing(traces)
@@ -26,5 +39,8 @@ def readMMseqOut(filenames):
     df0 = set(df0.iloc[:,1])
     df1 = set(df1.iloc[:,1])
     return [df0, df1]
-boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
-readGenbanks('/hdd-roo/DHS/gbk/*gbk', boundary_set)
+
+createGembase(glob.glob('/hdd-roo/DHS/gbk/*gbk'))
+
+#boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
+#readGenbanks('/hdd-roo/DHS/gbk/*gbk', boundary_set)
