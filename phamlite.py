@@ -16,16 +16,22 @@ import io
 import numpy as np
 
 
-def drawOrf(orfs, z=0, h=0.2):
+def drawOrf(systems, orfs, z=0, h=0.2):
     firstorf = np.min([x.location.start for x in orfs])
     trace_list = []
     for orf in orfs:
         if orf.type == 'CDS':
+            wpid = orf.qualifiers['protein_id'][0].replace('_','').split('.')[0]
             start, stop, strand = orf.location.start, orf.location.end, orf.location.strand
             color = 'gray'
             linecolor = 'black'
-            opacity=1
+            opacity=.4
             x, y = draw_shape(start, stop, strand, z, h, firstorf)
+            if wpid in systems:
+                sys = systems[wpid]
+                color = '#3c9999'
+                opacity = 1
+            product = orf.qualifiers.get('product', ['unknown'])[0]
             trace = go.Scatter(
                     x=x,
                     y=y,
@@ -35,10 +41,9 @@ def drawOrf(orfs, z=0, h=0.2):
                     fillcolor=color,
                     line_color=linecolor,
                     line_width=3,
-                    text=orf.qualifiers.get('product', 'na'),
+                    text=product,
                     hoverinfo='text')
             trace_list.append(trace)
-    print(trace_list)
     return trace_list
 
 def load_trna_trace(self,z=0,h=0.2):
@@ -82,7 +87,7 @@ def draw_shape(start, stop, strand, z, h, firstorf):
         y=(z, z+h/2, z+h, z+h, z+h/2, z, z)
     elif strand == -1:
         x=(start+arrow_offset, start, start+arrow_offset, stop, stop-arrow_offset, stop, start+arrow_offset)
-        y=(h/4+z, h/4+z-h/2, h/4+z-h, h/4+z-h, h/4+z-h/2, h/4+z, h/4+z)
+        y=(h/2+z, h/2+z-h/2, h/2+z-h, h/2+z-h, h/2+z-h/2, h/2+z, h/2+z)
     else:
         z = z+0.5 #offset height
         x=(start, start, stop, stop, start)
@@ -109,13 +114,13 @@ def draw_repeat(start,stop,strand,z,h,firstorf,lastorf):
         y=(z,z-h,z-h,z,z)
     return x,y
 
-def graphing(traces):
+def graphing(traces, contig):
     fig = go.Figure(layout={'width':1200,'height':1200})
     fig.update_yaxes(range=[-5, 5])
     [fig.add_trace(x) for x in traces] 
     fig.layout.plot_bgcolor = 'white'
     fig.layout.paper_bgcolor = 'white'
     fig.update_layout(showlegend=False)
-    fig.write_html('/hdd-roo/DHS/figures/file.html')
+    fig.write_html('/hdd-roo/DHS/html/{}.html'.format(contig))
     
 
