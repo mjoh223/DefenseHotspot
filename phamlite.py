@@ -20,7 +20,7 @@ def drawOrf(systems, orfs, z=0, h=0.2):
     firstorf = np.min([x.location.start for x in orfs])
     trace_list = []
     for orf in orfs:
-        if orf.type == 'CDS':
+        if orf.type == 'CDS' and 'protein_id' in orf.qualifiers:
             wpid = orf.qualifiers['protein_id'][0].replace('_','').split('.')[0]
             start, stop, strand = orf.location.start, orf.location.end, orf.location.strand
             color = 'gray'
@@ -117,6 +117,7 @@ def draw_repeat(start,stop,strand,z,h,firstorf,lastorf):
 def graphing(traces, contig):
     fig = go.Figure(layout={'width':1200,'height':1200})
     fig.update_yaxes(range=[-5, 5])
+    fig.update_xaxes(range=[0, 45000])
     [fig.add_trace(x) for x in traces] 
     fig.layout.plot_bgcolor = 'white'
     fig.layout.paper_bgcolor = 'white'

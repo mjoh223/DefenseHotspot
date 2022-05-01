@@ -6,6 +6,14 @@ from phamlite import drawOrf, graphing
 from multiprocessing import Pool
 import csv
 import re
+from Bio.SeqUtils import GC
+
+def calculateGC(record, DHS, a ,b ,c):
+    fna = str(record.seq)
+    first = int(DHS[0].location.start)
+    last = int(DHS[-1].location.end)
+    print('{}\t{}\t{}\t{}\t{}'.format(a,b,c,GC(fna),GC(fna[first:last])))
+
 
 def parallelcreategembasefromDHS(DHS_record_features, assembly, contig):
     f = open(os.path.join('/hdd-roo/DHS/parallel/', contig), "w")
@@ -52,17 +60,24 @@ def grabDHS(record, boundary_set):
         assembly = record.dbxrefs[0].split(':')[1].replace('_','').replace('.','')
         contig = record.name.replace('_','').replace('.','')
         coords = sorted([l_coord,r_coord])
-        offset = 6 # number of features to extend the boundary for each side
+        offset = 0 # number of features to extend the boundary for each side
         DHS = record.features[coords[0][0]-offset:coords[1][1]+offset]
         desc = record.description
+        if len(DHS) > 0:#'aeruginosa' in desc and len(DHS) > 0:
+            DHS = [x for x in DHS if x.type == 'CDS']
+            calculateGC(record, DHS, desc, assembly, contig)
+            #first = int(DHS[0].location.start)
+            #last = int(DHS[-1].location.end)
+            #print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(desc, assembly, contig, first, last, last-first,len(DHS)))
+            #graph(systems, DHS, contig)
         #f = open(os.path.join('/hdd-roo/DHS/parallel/', contig), "w")
         #dhs_len = len(list(filter(lambda x: x.type == 'CDS', DHS)))
         #first = DHS[0].qualifiers['locus_tag'][0]
         #last = DHS[-1].qualifiers['locus_tag'][0]
         #f.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(desc, assembly, contig, dhs_len, first, last))
         #f.close()
-        #parallelcreategembasefromDHS(DHS, assembly, contig)
-        graph(systems, DHS, contig)
+            #parallelcreategembasefromDHS(DHS[1:-1], assembly, contig)
+        #graph(systems, DHS, contig)
         #print(lol)
 def readGenbanks(filename, boundary_set):
     gb_files = glob.glob(filename)
@@ -86,6 +101,8 @@ def readISLANDproteins(filename):
 def readMMseqOut(filenames):
     df0 = pd.read_csv(filenames[0], delimiter = '\t', header=None)
     df1 = pd.read_csv(filenames[1], delimiter = '\t', header=None)
+    df0 = df0[(df0.iloc[:,2] > 0.8) & (df0.iloc[:,3] > 93.6)] 
+    df1 = df1[(df1.iloc[:,2] > 0.8) & (df1.iloc[:,3] > 1678.4)] 
     df0 = set(df0.iloc[:,1])
     df1 = set(df1.iloc[:,1])
     return [df0, df1]
@@ -100,7 +117,7 @@ def parallel(genbanks):
 
 boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
 genbanks = glob.glob('/hdd-roo/DHS/gbk/*gbk')
-systems = readISLANDproteins('/hdd-roo/DHS/DHS_ISLAND_proteins.csv')
+#systems = readISLANDproteins('/hdd-roo/DHS/DHS_ISLAND_proteins.csv')
 parallel(genbanks)
 #createGembase(glob.glob('/hdd-roo/DHS/gbk/*gbk'))
 #readGenbanks('/hdd-roo/DHS/gbk/*gbk', boundary_set)
