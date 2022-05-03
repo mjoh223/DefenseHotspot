@@ -7,6 +7,88 @@ from multiprocessing import Pool
 import csv
 import re
 from Bio.SeqUtils import GC
+import numpy as np
+from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+import ast
+import subprocess
+
+def parseDomains(filename):
+    file1 = open(filename, 'r')
+    lines = file1.readlines()
+    listOfLines = list()
+    for i,line in enumerate(lines):
+        if line[0] != '#':
+            items = line.strip()
+            items = items.split('\t')
+            listOfLines.append(items)
+    di = {}
+    for i, line in enumerate(listOfLines):
+        if line[0] == 'QUERY':
+            query = line[4]
+            #query = '|'.join(query.split(',')[1:])
+        if line == ['DOMAINS']:
+            c = 1
+            while listOfLines[i+c] != ['ENDDOMAINS']:
+                hit = listOfLines[i+c]
+                hit = '|'.join([hit[6],hit[8],hit[9]])
+                if query in di.keys():
+                    di[query][0].add(hit)
+                else:
+                    di[query] = [set([hit])]#[hit[9],]
+                c +=1
+    for k,v in di.items():
+        v = list(v[0])
+        v = [x.split('|') for x in v]
+        [print('{}\t{}\t{}\t{}'.format(k,*x)) for x in v]
+        #domains = ['{}\t{}\t{}'.format(x) for x in list(v)[0].split('|')]
+        #print('{}\t'+domains)
+    return di
+
+def domainAnalysis(filename):
+    command = ['rpsblast '+ '-query '+ filename+' '+ '-db ' '/hdd-roo/DHS/pfam/db/Pfam '+ '-evalue '+ '0.01 '+ '-outfmt '+ '11 '+ '-out '+ 'DHS_domains.txt ']
+    subprocess.run(command, stdout=subprocess.PIPE)
+
+
+def gc_content(seq):
+    return round((seq.count('C') + seq.count('G')) / len(seq) * 100)
+
+def gc_content_subsec(seq, k=1000):
+    res = []
+    for i in range(0, len(seq) - k+1, k):
+        subseq = seq[i:i+k]
+        res.append(gc_content(subseq))
+    return res
+
+def plotGC(filename):
+    file_ = open(filename, 'r')
+    lines = file_.readlines()
+    list_of_gc = [x.rstrip().strip('][').split(', ') for x in lines]
+    for gc in list_of_gc:
+        gc = gc[:-10]
+        if len(gc) < 400:
+            mylist = list()
+            for i in gc:
+                try:
+                    mylist.append(int(i))
+                except:
+                    1+1
+            y = np.array(mylist)
+            #x = np.array(range(len(mylist)))
+            plt.plot(y,alpha=0.2,color='green')
+    plt.ylim([30, 80])
+    plt.savefig("gc.png")
+plotGC('GC_values.txt')
+
+def regressionGC(seq):
+    y = np.array(gc_content_subsec(seq[1000:-10000]))
+    #print('{}'.format([x for x in y]))
+    x = np.array(range(len(y))).reshape((-1,1))
+    model = LinearRegression()
+    model.fit(x,y)
+    r_sq = model.score(x, y)
+    print('coefficient of determination:', r_sq)
+    print('slope:', model.coef_)
 
 def calculateGC(record, DHS, a ,b ,c):
     fna = str(record.seq)
@@ -16,7 +98,7 @@ def calculateGC(record, DHS, a ,b ,c):
 
 
 def parallelcreategembasefromDHS(DHS_record_features, assembly, contig):
-    f = open(os.path.join('/hdd-roo/DHS/parallel/', contig), "w")
+    f = open(os.path.join('/hdd-roo/DHS/DHS_proteins_no_systems/', contig), "w")
     for feature in DHS_record_features:
         if feature.type == 'CDS' and 'protein_id' in feature.qualifiers:
             f.write('>{}q{}_{}\n'.format(
@@ -63,9 +145,17 @@ def grabDHS(record, boundary_set):
         offset = 0 # number of features to extend the boundary for each side
         DHS = record.features[coords[0][0]-offset:coords[1][1]+offset]
         desc = record.description
-        if len(DHS) > 0:#'aeruginosa' in desc and len(DHS) > 0:
-            DHS = [x for x in DHS if x.type == 'CDS']
-            calculateGC(record, DHS, desc, assembly, contig)
+        DHS = [x for x in DHS if x.type == 'CDS' and 'protein_id' in x.qualifiers]
+        if len(DHS) < 148:#'aeruginosa' in desc and len(DHS) > 0:
+            first = int(DHS[0].location.start)
+            last = int(DHS[-1].location.end)
+            fna = str(record.seq)[first:last]
+            if 'tRNA' not in [x.type for x in DHS][:int(len(DHS)/2)]: #make sure the tRNA side is the beginning on the list
+                DHS.reverse()
+                fna = str(record.seq[first:last].reverse_complement())
+            DHS = [x for x in DHS if x.qualifiers['protein_id'][0].replace('_','').split('.')[0] not in systems]
+            parallelcreategembasefromDHS(DHS, assembly, contig)
+            #regressionGC(fna)
             #first = int(DHS[0].location.start)
             #last = int(DHS[-1].location.end)
             #print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(desc, assembly, contig, first, last, last-first,len(DHS)))
@@ -117,8 +207,9 @@ def parallel(genbanks):
 
 boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
 genbanks = glob.glob('/hdd-roo/DHS/gbk/*gbk')
-#systems = readISLANDproteins('/hdd-roo/DHS/DHS_ISLAND_proteins.csv')
-parallel(genbanks)
+systems = readISLANDproteins('/hdd-roo/DHS/042822_island_results_prot.csv')
+parseDomains('/hdd-roo/DHS/pfam/050322_domain_results.tsv')
+#parallel(genbanks)
 #createGembase(glob.glob('/hdd-roo/DHS/gbk/*gbk'))
 #readGenbanks('/hdd-roo/DHS/gbk/*gbk', boundary_set)
 
