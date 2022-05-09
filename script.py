@@ -13,6 +13,36 @@ import matplotlib.pyplot as plt
 import ast
 import subprocess
 
+def findSystems(DHS, assembly, contig):
+    mylist = list()
+    print(len(DHS))
+    for feature in DHS:
+        id_='{}q{}_{}'.format(assembly, contig, feature.qualifiers['protein_id'][0].split('.')[0].replace('_',''))
+        if id_ in dhs_family_dict:
+            rep = dhs_family_dict[id_]
+            mylist.append(rep)
+        else:
+            break
+    print(mylist)
+    return mylist
+
+def createDHSprotfamily(filename):
+    file1 = open(filename, 'r')
+    lines = file1.readlines()
+    mydict = dict()
+    for line in lines:
+        rep, mem = line.rstrip().split('\t')
+        mydict[mem] = rep
+    return mydict
+
+def countSpaces(DHS):
+    for i, gene in enumerate(DHS):
+        try:
+            print(DHS[i+1].location.start - gene.location.end)
+            #print(np.absolute(gene.location.end - DHS[i+1].location.start))
+        except:
+            pass
+
 def parseDomains(filename):
     file1 = open(filename, 'r')
     lines = file1.readlines()
@@ -49,7 +79,6 @@ def domainAnalysis(filename):
     command = ['rpsblast '+ '-query '+ filename+' '+ '-db ' '/hdd-roo/DHS/pfam/db/Pfam '+ '-evalue '+ '0.01 '+ '-outfmt '+ '11 '+ '-out '+ 'DHS_domains.txt ']
     subprocess.run(command, stdout=subprocess.PIPE)
 
-
 def gc_content(seq):
     return round((seq.count('C') + seq.count('G')) / len(seq) * 100)
 
@@ -78,7 +107,7 @@ def plotGC(filename):
             plt.plot(y,alpha=0.2,color='green')
     plt.ylim([30, 80])
     plt.savefig("gc.png")
-plotGC('GC_values.txt')
+
 
 def regressionGC(seq):
     y = np.array(gc_content_subsec(seq[1000:-10000]))
@@ -96,9 +125,8 @@ def calculateGC(record, DHS, a ,b ,c):
     last = int(DHS[-1].location.end)
     print('{}\t{}\t{}\t{}\t{}'.format(a,b,c,GC(fna),GC(fna[first:last])))
 
-
 def parallelcreategembasefromDHS(DHS_record_features, assembly, contig):
-    f = open(os.path.join('/hdd-roo/DHS/DHS_proteins_no_systems/', contig), "w")
+    f = open(os.path.join('/hdd-roo/DHS/DHS_proteins/', contig), "w")
     for feature in DHS_record_features:
         if feature.type == 'CDS' and 'protein_id' in feature.qualifiers:
             f.write('>{}q{}_{}\n'.format(
@@ -133,7 +161,10 @@ def createGembase(gb_files):
 
 def graph(systems, DHS, contig):
     traces = drawOrf(systems, DHS)
-    graphing(traces, contig)
+    first = int(DHS[0].location.start)
+    last = int(DHS[-1].location.end)
+    size = last - first
+    graphing(traces, contig, size)
 
 def grabDHS(record, boundary_set):
     l_coord = [x[0] for x in enumerate(record.features) if x[1].qualifiers.get('locus_tag', [''])[0] in boundary_set[0]]
@@ -142,24 +173,26 @@ def grabDHS(record, boundary_set):
         assembly = record.dbxrefs[0].split(':')[1].replace('_','').replace('.','')
         contig = record.name.replace('_','').replace('.','')
         coords = sorted([l_coord,r_coord])
-        offset = 0 # number of features to extend the boundary for each side
+        offset = 10 # number of features to extend the boundary for each side
         DHS = record.features[coords[0][0]-offset:coords[1][1]+offset]
         desc = record.description
-        DHS = [x for x in DHS if x.type == 'CDS' and 'protein_id' in x.qualifiers]
-        if len(DHS) < 148:#'aeruginosa' in desc and len(DHS) > 0:
-            first = int(DHS[0].location.start)
-            last = int(DHS[-1].location.end)
-            fna = str(record.seq)[first:last]
+        DHS = [x for x in DHS if x.type in ['CDS', 'tRNA']] #and 'protein_id' in x.qualifiers]
+        if len(DHS) < 148+11:#'aeruginosa' in desc and len(DHS) > 0:
+            #first = int(DHS[0].location.start)
+            #last = int(DHS[-1].location.end)
+            #fna = str(record.seq)[first:last]
             if 'tRNA' not in [x.type for x in DHS][:int(len(DHS)/2)]: #make sure the tRNA side is the beginning on the list
                 DHS.reverse()
-                fna = str(record.seq[first:last].reverse_complement())
-            DHS = [x for x in DHS if x.qualifiers['protein_id'][0].replace('_','').split('.')[0] not in systems]
-            parallelcreategembasefromDHS(DHS, assembly, contig)
+            #    fna = str(record.seq[first:last].reverse_complement())
+            #countSpaces(DHS)
+            #DHS = [x for x in DHS if x.qualifiers['protein_id'][0].replace('_','').split('.')[0] not in systems]
+            #reps = findSystems(DHS, assembly, contig)
+            #parallelcreategembasefromDHS(DHS, assembly, contig)
             #regressionGC(fna)
             #first = int(DHS[0].location.start)
             #last = int(DHS[-1].location.end)
             #print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(desc, assembly, contig, first, last, last-first,len(DHS)))
-            #graph(systems, DHS, contig)
+            graph(systems, DHS, contig)
         #f = open(os.path.join('/hdd-roo/DHS/parallel/', contig), "w")
         #dhs_len = len(list(filter(lambda x: x.type == 'CDS', DHS)))
         #first = DHS[0].qualifiers['locus_tag'][0]
@@ -208,9 +241,9 @@ def parallel(genbanks):
 boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
 genbanks = glob.glob('/hdd-roo/DHS/gbk/*gbk')
 systems = readISLANDproteins('/hdd-roo/DHS/042822_island_results_prot.csv')
-parseDomains('/hdd-roo/DHS/pfam/050322_domain_results.tsv')
-#parallel(genbanks)
+#parseDomains('/hdd-roo/DHS/pfam/050322_domain_results.tsv')
+dhs_family_dict = createDHSprotfamily('/hdd-roo/DHS/predict_systems/db_cluster.tsv')
+parallel(genbanks)
+#plotGC('GC_values.txt')
 #createGembase(glob.glob('/hdd-roo/DHS/gbk/*gbk'))
 #readGenbanks('/hdd-roo/DHS/gbk/*gbk', boundary_set)
-
-

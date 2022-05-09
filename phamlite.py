@@ -15,7 +15,6 @@ import plotly.graph_objects as go
 import io
 import numpy as np
 
-
 def drawOrf(systems, orfs, z=0, h=0.2):
     firstorf = np.min([x.location.start for x in orfs])
     trace_list = []
@@ -31,18 +30,39 @@ def drawOrf(systems, orfs, z=0, h=0.2):
                 sys = systems[wpid]
                 color = '#3c9999'
                 opacity = 1
-            product = orf.qualifiers.get('product', ['unknown'])[0]
+            product = 'prod'#orf.qualifiers.get('product', ['unknown'])[0]
             trace = go.Scatter(
                     x=x,
                     y=y,
-                    marker=dict(size=3),
+                    marker=dict(size=2),
                     opacity=opacity,
                     fill='toself',
                     fillcolor=color,
                     line_color=linecolor,
-                    line_width=3,
+                    line_width=2,
                     text=product,
                     hoverinfo='text')
+            trace_list.append(trace)
+        
+        if orf.type == 'tRNA':
+            print(orf.location)
+            start = orf.location.start
+            stop = orf.location.end
+            strand = orf.location.strand
+            x, y = draw_trna(start, stop, strand, z, h, firstorf )
+            color = 'purple'
+            trace = go.Scatter(
+                    x=x,
+                    y=y,
+                    marker=dict(size=3),
+                    opacity=1,
+                    fill='toself',
+                    fillcolor=color,
+                    line_color='purple',
+                    line_width=3,
+                    text='tRNA',
+                    hoverinfo='text')
+            print(trace)
             trace_list.append(trace)
     return trace_list
 
@@ -92,17 +112,17 @@ def draw_shape(start, stop, strand, z, h, firstorf):
         z = z+0.5 #offset height
         x=(start, start, stop, stop, start)
         y=(z, z+h, z+h, z, z)
-    return x-firstorf,y
+    return x-firstorf, y
 
-def draw_trna(start,stop,strand,z,h,firstorf,lastorf):
+def draw_trna(start,stop,strand,z,h,firstorf):
     start,stop = int(start), int(stop)
     if strand == 1:
         x=(start, start, stop, stop, start)
         y=(z, z+h, z+h, z, z)
     else:
         x=(start, start, stop, stop, start)
-        y=(z, z-h, z-h, z, z)
-    return x,y
+        y=(h/2+z, h/2+z-h, h/2+z-h, h/2+z, h/2+z)
+    return x-firstorf, y
 
 def draw_repeat(start,stop,strand,z,h,firstorf,lastorf):
     start,stop = int(start), int(stop)
@@ -114,14 +134,14 @@ def draw_repeat(start,stop,strand,z,h,firstorf,lastorf):
         y=(z,z-h,z-h,z,z)
     return x,y
 
-def graphing(traces, contig):
-    fig = go.Figure(layout={'width':1200,'height':1200})
-    fig.update_yaxes(range=[-5, 5])
-    fig.update_xaxes(range=[0, 45000])
+def graphing(traces, contig, size):
+    fig = go.Figure(layout={'width':204000,'height':600})
+    fig.update_yaxes(range=[-2, 2])
+    fig.update_xaxes(range=[-100, 10000000]) #was 45000
     [fig.add_trace(x) for x in traces] 
     fig.layout.plot_bgcolor = 'white'
     fig.layout.paper_bgcolor = 'white'
     fig.update_layout(showlegend=False)
-    fig.write_html('/hdd-roo/DHS/html/{}.html'.format(contig))
+    fig.write_image('/hdd-roo/DHS/DHS_svg/{}.svg'.format(contig))
     
 
