@@ -13,26 +13,45 @@ import uuid
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from collections import defaultdict
-import pyfasta
+# 1- preprocessing: split gembase into 128 parts
+# 2- functions are ran on each gembase partition
 
-def parseGemVfile(gem_file):
-    #return a dictionary contig for each assembly in gembase
-    assemblies = set()
-    contig_protein_dict = {}
-    index = 0
-    all_contigs = list()
+def preprocess(user_gembase, working_dir):
+    with open(user_gembase, 'a') as outFile:
+    record_ids = set()
+    for record in SeqIO.parse('input.fasta', 'fasta'):
+        if record.id not in record_ids:
+            record_ids.add(record.id)
+            SeqIO.write(record, outFile, 'fasta')
+            
+if __name__ == "__main__":
+    working_dir = '/hdd-roo/DHS/DHSfinder_out/'
+    preprocess('/hdd-roo/DHS/short_gembase.fa', working_dir)
+print(i)
+
+def calc_batch_sizes(n_tasks: int, n_workers: int) -> list:
+    x = int(n_tasks / n_workers)
+    y = n_tasks % n_workers
+    batch_sizes = [x + (y > 0)] * y + [x] * (n_workers - y)
+    return batch_sizes
+
+def build_batch_ranges(batch_sizes: list) -> list:
+    upper_bounds = [*itertools.accumulate(batch_sizes)]
+    lower_bounds = [0] + upper_bounds[:-1]
+    batch_ranges = [range(l, u) for l, u in zip(lower_bounds, upper_bounds)]
+    return batch_ranges
 
 def cluster(gem_file):
     #input: gembase file
     #returns: classes with gene families
-    working_path = '/hdd-roo/DHS/scripts/DHSfinder_out/'
+    working_path = '/hdd-roo/DHS/DHSfinder_out/'
     binb = '/home/jbd_apps/dash_app/MMseqs2/build/bin'
     cluster = ['{}/mmseqs'.format(binb),
                 'easy-cluster',
                 gem_file,
                 os.path.join(working_path, 'clu'),
                 os.path.join(working_path, 'tmp')]
-    subprocess.run(cluster, shell=False)
+    #subprocess.run(cluster, shell=False)
     return pd.read_csv(os.path.join(working_path, 'clu_cluster.tsv'), sep='\t',header=None, names=['representative','member'])
 
 def get_cluster_dict(clust_pd):
@@ -89,10 +108,6 @@ def tophits(regions_dict):
         print(rid.second_bound)
         print(acc)
 
-def parallel_contig_dict(gem_file, cluster_dict):
-    p = Pool(128)
-    p.map()
-
 def parallel_regions(contig_list):
     print(len(contig_list))
     p = Pool(128)
@@ -107,12 +122,15 @@ def parallel_regions(contig_list):
     return dd
 
 if __name__ == "__main__":
-    gem_file = '/hdd-roo/DHS/short_gembase.fa'#'/hdd-roo/DHS/p_aeruginosa_total_gembase.txt'
+    gem_file = '/hdd-roo/DHS/pae_short_gem.fa'#'/hdd-roo/DHS/p_aeruginosa_total_gembase.txt'
+    print('reading cluster tsv')
     tsv = cluster(gem_file)
-    print('filtering potential DHS boundaries')
+    print('making lookup table')
     cluster_dict = get_cluster_dict(tsv) #returns a dictionary of the mmseqs cluster representatives
-    print('getting contig protein dict')
-    contig_protein_dict, db_size = get_contig_dict(gem_file, cluster_dict)
-    contig_list = contig_protein_dict.items()
-    regions_dict = parallel_regions(contig_list)
-    tophits(regions_dict)
+    print('getting contig-protein dict')
+    parallel_contig_dict(gem_file, cluster_dict)
+    #contig_protein_dict, db_size = get_contig_dict(gem_file, cluster_dict)
+    print('done')
+    #contig_list = contig_protein_dict.items()
+    #regions_dict = parallel_regions(contig_list)
+    #tophits(regions_dict)
