@@ -13,6 +13,15 @@ import matplotlib.pyplot as plt
 import ast
 import subprocess
 
+def defensefinder(filename):
+    df_pd = pd.read_csv(filename, sep='\t')
+    id_col = df_pd.iloc[:,np.r_[1,5]]
+    mydict = dict()
+    for i, row in id_col.iterrows():
+        for id_ in row[1].split(','):
+            mydict[id_] = row[0]
+    return mydict
+
 def findSystems(DHS, assembly, contig):
     mylist = list()
     print(len(DHS))
@@ -159,12 +168,16 @@ def createGembase(gb_files):
                         ))
                     print(feature.qualifiers['translation'][0])
 
-def graph(systems, DHS, contig):
-    traces = drawOrf(systems, DHS)
-    first = int(DHS[0].location.start)
-    last = int(DHS[-1].location.end)
+def graph(systems, contig, assembly, DHS):
+    traces, sys = drawOrf(systems, contig, assembly, DHS)
+    try:
+        first = int(DHS[0].location.start)
+        last = int(DHS[-1].location.end)
+    except:
+        first = 0
+        last = 2
     size = last - first
-    graphing(traces, contig, size)
+    graphing(traces, contig, size, sys)
 
 def grabDHS(record, boundary_set):
     l_coord = [x[0] for x in enumerate(record.features) if x[1].qualifiers.get('locus_tag', [''])[0] in boundary_set[0]]
@@ -173,17 +186,19 @@ def grabDHS(record, boundary_set):
         assembly = record.dbxrefs[0].split(':')[1].replace('_','').replace('.','')
         contig = record.name.replace('_','').replace('.','')
         coords = sorted([l_coord,r_coord])
-        offset = 10 # number of features to extend the boundary for each side
+        offset = 1 # number of features to extend the boundary for each side
         DHS = record.features[coords[0][0]-offset:coords[1][1]+offset]
         desc = record.description
         DHS = [x for x in DHS if x.type in ['CDS', 'tRNA']] #and 'protein_id' in x.qualifiers]
-        if len(DHS) < 148+11:#'aeruginosa' in desc and len(DHS) > 0:
-            #first = int(DHS[0].location.start)
-            #last = int(DHS[-1].location.end)
-            #fna = str(record.seq)[first:last]
+        if len(DHS) < 148:#'aeruginosa' in desc and len(DHS) > 0:
+            first = int(DHS[0].location.start)
+            last = int(DHS[-1].location.end)
+            fna = str(record.seq)[first:last]
             if 'tRNA' not in [x.type for x in DHS][:int(len(DHS)/2)]: #make sure the tRNA side is the beginning on the list
                 DHS.reverse()
-            #    fna = str(record.seq[first:last].reverse_complement())
+                fna = str(record.seq[first:last].reverse_complement())
+            print('>{}'.format(contig))
+            print('{}\n'.format(fna[:2000]))
             #countSpaces(DHS)
             #DHS = [x for x in DHS if x.qualifiers['protein_id'][0].replace('_','').split('.')[0] not in systems]
             #reps = findSystems(DHS, assembly, contig)
@@ -192,16 +207,8 @@ def grabDHS(record, boundary_set):
             #first = int(DHS[0].location.start)
             #last = int(DHS[-1].location.end)
             #print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(desc, assembly, contig, first, last, last-first,len(DHS)))
-            graph(systems, DHS, contig)
-        #f = open(os.path.join('/hdd-roo/DHS/parallel/', contig), "w")
-        #dhs_len = len(list(filter(lambda x: x.type == 'CDS', DHS)))
-        #first = DHS[0].qualifiers['locus_tag'][0]
-        #last = DHS[-1].qualifiers['locus_tag'][0]
-        #f.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(desc, assembly, contig, dhs_len, first, last))
-        #f.close()
-            #parallelcreategembasefromDHS(DHS[1:-1], assembly, contig)
-        #graph(systems, DHS, contig)
-        #print(lol)
+            #graph(systems, contig, assembly, DHS)
+
 def readGenbanks(filename, boundary_set):
     gb_files = glob.glob(filename)
     for gb_file in gb_files:
@@ -234,8 +241,7 @@ def runner(gb_file):
     [grabDHS(gb_record, boundary_set) for gb_record in SeqIO.parse(open(gb_file,"r"), "genbank")]
 
 def parallel(genbanks):
-    #for genbank in genbanks:
-    p = Pool(128)
+    p = Pool(96)
     p.map(runner, genbanks)
 
 boundary_set = readMMseqOut(['/hdd-roo/DHS/lb_results', '/hdd-roo/DHS/rb_results'])
@@ -243,6 +249,7 @@ genbanks = glob.glob('/hdd-roo/DHS/gbk/*gbk')
 systems = readISLANDproteins('/hdd-roo/DHS/042822_island_results_prot.csv')
 #parseDomains('/hdd-roo/DHS/pfam/050322_domain_results.tsv')
 dhs_family_dict = createDHSprotfamily('/hdd-roo/DHS/predict_systems/db_cluster.tsv')
+systems = defensefinder('/hdd-roo/DHS/defensefinder/defense_finder_systems.tsv')
 parallel(genbanks)
 #plotGC('GC_values.txt')
 #createGembase(glob.glob('/hdd-roo/DHS/gbk/*gbk'))

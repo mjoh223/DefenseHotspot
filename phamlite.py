@@ -15,22 +15,90 @@ import plotly.graph_objects as go
 import io
 import numpy as np
 
-def drawOrf(systems, orfs, z=0, h=0.2):
-    firstorf = np.min([x.location.start for x in orfs])
+def colorofsystem(sys):
+    colors = [
+        '#993c99',
+        '#a53991',
+        '#af3788',
+        '#b73780',
+        '#be3877',
+        '#c33a6e',
+        '#c73e65',
+        '#c9435d',
+        '#ca4a55',
+        '#cb504d',
+        '#ca5746',
+        '#c85e40',
+        '#c5663a',
+        '#c26d35',
+        '#bd7432',
+        '#b87b2f',
+        '#b3812e',
+        '#ad872f',
+        '#a78e32',
+        '#a09336',
+        '#99993c']
+    systems = [
+        'RM',
+        'Shedu',
+        'BREX',
+        'Gabija',
+        'Zorya',
+        'SspBCDE',
+        'DarTG',
+        'Septu',
+        'Gao_Qat',
+        'Druantia',
+        'Dnd',
+        'AbiEii',
+        'Lamassu',
+        'Gao_RL',
+        'Wadjet',
+        'Hachiman',
+        'DISARM',
+        'CBASS',
+        'Gao_Upx',
+        'Kiwa',
+        'Thoeris',]
+    mydict = dict(zip(systems,colors))
+    return mydict[sys]
+
+def drawOrf(systems, contig, assembly, orfs, z=0, h=0.2):
+    try:
+        firstorf = np.min([x.location.start for x in orfs])
+    except:
+        firstorf = 0
     trace_list = []
-    for orf in orfs:
+    sys_list = []
+    for i, orf in enumerate(orfs):
+        #if i < 7:
+        #    color = '#3c9999'
+        #    opacity = 1
+        #elif i > len(orfs)-7:
+        #    color = '#3c9999'
+        #    opacity = 1
+        #else:
+        #    color = 'gray'
+        #    opacity = 0.4
         if orf.type == 'CDS' and 'protein_id' in orf.qualifiers:
-            wpid = orf.qualifiers['protein_id'][0].replace('_','').split('.')[0]
+            gembase_id = '{}q{}_{}'.format(assembly,contig,orf.qualifiers['protein_id'][0].split('.')[0].replace('_',''))
+            print(gembase_id)
+            #wpid = orf.qualifiers['protein_id'][0].replace('_','').split('.')[0]
             start, stop, strand = orf.location.start, orf.location.end, orf.location.strand
             color = 'gray'
+            opacity = 0.4
             linecolor = 'black'
-            opacity=.4
             x, y = draw_shape(start, stop, strand, z, h, firstorf)
-            if wpid in systems:
-                sys = systems[wpid]
-                color = '#3c9999'
+            sys = ''
+            if gembase_id in systems:
+                sys = systems[gembase_id]
+                print(sys)
+                sys_list.append(sys)
+                color = colorofsystem(sys)
+                print(color)
+                #color = '#3c9999'
                 opacity = 1
-            product = 'prod'#orf.qualifiers.get('product', ['unknown'])[0]
+            product = orf.qualifiers.get('product', ['unknown'])[0]+'_'+sys
             trace = go.Scatter(
                     x=x,
                     y=y,
@@ -40,7 +108,7 @@ def drawOrf(systems, orfs, z=0, h=0.2):
                     fillcolor=color,
                     line_color=linecolor,
                     line_width=2,
-                    text=product,
+                    text=gembase_id,
                     hoverinfo='text')
             trace_list.append(trace)
         
@@ -54,17 +122,18 @@ def drawOrf(systems, orfs, z=0, h=0.2):
             trace = go.Scatter(
                     x=x,
                     y=y,
-                    marker=dict(size=3),
+                    marker=dict(size=1),
                     opacity=1,
                     fill='toself',
                     fillcolor=color,
                     line_color='purple',
-                    line_width=3,
+                    line_width=1,
                     text='tRNA',
                     hoverinfo='text')
-            print(trace)
             trace_list.append(trace)
-    return trace_list
+    sys_str = '_'.join(sys_list)
+    sys_str = sys_str.replace(' ', '_')
+    return trace_list, sys_str
 
 def load_trna_trace(self,z=0,h=0.2):
     self.firstorf = np.min([x.location.start for x in self.orfs])
@@ -134,14 +203,16 @@ def draw_repeat(start,stop,strand,z,h,firstorf,lastorf):
         y=(z,z-h,z-h,z,z)
     return x,y
 
-def graphing(traces, contig, size):
-    fig = go.Figure(layout={'width':204000,'height':600})
-    fig.update_yaxes(range=[-2, 2])
-    fig.update_xaxes(range=[-100, 10000000]) #was 45000
+def graphing(traces, contig, size, sys):
+    size = np.absolute(size)
+    fig = go.Figure(layout={'width':size/50,'height':400})
+    fig.update_yaxes(range=[-3, 3], visible=False)
+    fig.update_xaxes(range=[-1000, size+1000]) #was 45000
     [fig.add_trace(x) for x in traces] 
     fig.layout.plot_bgcolor = 'white'
     fig.layout.paper_bgcolor = 'white'
-    fig.update_layout(showlegend=False)
-    fig.write_image('/hdd-roo/DHS/DHS_svg/{}.svg'.format(contig))
+    fig.update_layout(showlegend=False, margin=dict(l=0,r=0,b=0,t=0))
+    fig.write_image('/hdd-roo/DHS/DHS_df_svg/{}_{}_{}.svg'.format(size, contig, sys))
+    fig.write_html('/hdd-roo/DHS/DHS_df_html/{}_{}_{}.html'.format(size, contig, sys))
     
 
